@@ -3,7 +3,6 @@ import pyfits;
 import numpy as np;
 import os;
 import time;
-import ccd_tools as cct;
 import cv2;
 from matplotlib.pyplot import *;
 import multiprocessing;
