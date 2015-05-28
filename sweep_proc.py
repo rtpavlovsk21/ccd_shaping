@@ -170,12 +170,6 @@ def main():
         hist_lst[k].SetName( str(sz_lst[k%len(sz_lst)] ));
         hist_lst[k].SaveAs(name);
 
-    import sys;
-    sys.path.append('../pyutils/');
-    import cemail as e;
-    msg='Sweep done for %s images in %s seconds.'%(len(files),n_t-time.time());
-    e.send_mail(msg);
-
 
 if __name__=="__main__":
     main();
