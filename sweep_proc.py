@@ -8,14 +8,14 @@ from matplotlib.pyplot import *;
 import multiprocessing;
 import time;
 
-sz_lst=[1];
+sz_lst=[3,5,7,9,11,15,17];
 kern_name=['flat','ellipse','cross'];
 #kern_name=['flat'];
 
 def make_kernel_list():
     ret_lst=[];
     #sweep flat kernel size
-    sz_lst=[1];
+    sz_lst=[3,5,7,9,11,15,17];
     for k in sz_lst:
         ret_lst.append(np.ones((k,k),dtype=np.uint8));
     for k in sz_lst:
@@ -63,8 +63,10 @@ def spectra_proc_from_file_list(files,nframe_per_med=29,thread_num=0,semaphore=m
         for frame in range(0,nframes):
             tbw_image=bw_image[:,:,frame];
             kernel_erode=np.ones((3,3),dtype=np.uint8);
-            tbw_image=cv2.erode(tbw_image,kernel_erode,iterations=1);
-            tbw_image=cv2.dilate(tbw_image,kernel,iterations=2);
+            kernel_dilate=np.ones((3,3),dtype=np.uint8);
+            tbw_image=cv2.erode( tbw_image,kernel_erode,iterations=1);
+            tbw_image=cv2.dilate(tbw_image,kernel_dilate,iterations=1);
+            tbw_image=cv2.dilate(tbw_image,kernel,iterations=1);
         
             nmarkers,markers=cv2.connectedComponents(tbw_image);
             #marker 0 is probably background
