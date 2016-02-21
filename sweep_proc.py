@@ -9,14 +9,14 @@ from matplotlib.pyplot import *;
 import multiprocessing;
 import time;
 
-sz_lst=[1];
+sz_lst=[3,5,7];
 kern_name=['flat','ellipse','cross'];
 #kern_name=['flat'];
 
 def make_kernel_list():
     ret_lst=[];
     #sweep flat kernel size
-    sz_lst=[1];
+    sz_lst=[3,5,7];
     for k in sz_lst:
         ret_lst.append(np.ones((k,k),dtype=np.uint8));
     for k in sz_lst:
@@ -50,8 +50,11 @@ def spectra_proc_from_file_list(files,nframe_per_med=29,thread_num=0,semaphore=m
     print "(thread %s) Frame Rate on Med: %s, %s"%(thread_num,float(nframes)/(time.time()-t0),float(nframes));
     
     #cct.make_histogram(image_array=image_array,dims=numpx);
-    
-    bw_image=(image_array>80).astype(np.uint8);
+    for frame in range(0,nframes):
+        fopt=gfit( image_array[:,:,frame].ravel() );
+        image_array[:,:,frame]-=round(fopt[1]);
+
+    bw_image=(image_array>200).astype(np.uint8);
 
     kernel_lst=make_kernel_list();
     hist_lst=[];
@@ -63,10 +66,10 @@ def spectra_proc_from_file_list(files,nframe_per_med=29,thread_num=0,semaphore=m
         #kernel=np.ones((3,3),np.uint8);
         for frame in range(0,nframes):
             tbw_image=bw_image[:,:,frame];
-            kernel_erode=np.ones((3,3),dtype=np.uint8);
+            #kernel_erode=np.ones((3,3),dtype=np.uint8);
             kernel_dilate=np.ones((3,3),dtype=np.uint8);
-            tbw_image=cv2.erode( tbw_image,kernel_erode,iterations=1);
-            tbw_image=cv2.dilate(tbw_image,kernel_dilate,iterations=1);
+            #tbw_image=cv2.erode( tbw_image,kernel_erode,iterations=1);
+            #tbw_image=cv2.dilate(tbw_image,kernel_dilate,iterations=1);
             tbw_image=cv2.dilate(tbw_image,kernel,iterations=1);
         
             nmarkers,markers=cv2.connectedComponents(tbw_image);
@@ -83,7 +86,7 @@ def spectra_proc_from_file_list(files,nframe_per_med=29,thread_num=0,semaphore=m
             nevents-=evt.shape[0];
 
         minn=int(0);
-        maxx=int(2**20);
+        maxx=int(2**21);
         print "(thread %s) Minn: %s Maxx: %s"%(thread_num,minn,maxx);
         name_str=str(thread_num)+str(kcounter)+str(0*np.random.rand(1));
         hist=TH1D(name_str,name_str,maxx-minn,minn,maxx);
@@ -91,6 +94,31 @@ def spectra_proc_from_file_list(files,nframe_per_med=29,thread_num=0,semaphore=m
         hist_lst.append(hist);
         kcounter+=1;
     return hist_lst;
+
+def gaus1d(x,a,x0,sigma):
+    return a*np.exp(-(x-x0)**2/(2*sigma**2));
+
+def gfit(vals, lims=[0,0]):
+    x=[];n=[];
+    mean=[];sigma=[];
+    l=[];
+    if(lims[0]==lims[1]):
+        x,n=np.histogram( vals, bins=( (vals).max()-(vals).min() )/2 );
+        maxx=np.argmax(x);
+        mean= (n[maxx-1]+n[maxx])/2;
+        sigma=50;
+        l=np.logical_and( np.less(mean-3*sigma,vals), np.greater(mean+3*sigma,vals) );
+    else:
+        l=np.logical_and( np.less(lims[0],vals), np.greater(lims[1],vals) );
+        mean=np.mean(vals[l]);
+        sigma=np.std(vals[l]);
+        x,n=np.histogram( vals[l], bins=( (vals[l]).max()-(vals[l]).min() )/2 );
+        
+    centers=np.asarray([ (n[k-1]+n[k])/2. for k in range(1,len(n)) ]);
+    from scipy.optimize import curve_fit
+    from scipy import asarray as ar,exp
+    popt,pcov = curve_fit(gaus1d,centers,x,p0=[1,mean,sigma])
+    return popt;
 
 def threaded_proc(files,thread_num,queque,semaphore):
     print "Number of files in thread %s is %s"%(thread_num,len(files));
