@@ -177,7 +177,7 @@ def main():
         thist_lst=queue.get();
         for h in range(0,len(hist_lst)):
             hist_lst[h].Add(thist_lst[h]);
-    
+
     drawing=False;
     if(drawing):
         for h in range(0,len( hist_lst)):
