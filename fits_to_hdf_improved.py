@@ -1,82 +1,9 @@
 import pyfits;
 import numpy as np;
 import h5py;
-import os;
-import time;
 import multiprocessing;
 from joblib import Parallel, delayed;
-import matplotlib.pyplot as plt;
-from scipy.optimize import curve_fit
-from scipy import asarray as ar,exp
-
-def get_image_array(files):
-    '''
-    Take in files list and return stacked ccd images MxNxlen(files). Note
-    that the full ccd image is 2Mx2N, this only extracts one quadrant.
-    '''
-    header= pyfits.getheader(files[0]);
-    numpx = np.asarray([header['naxis2'],header['naxis1']]);
-    num_divs=4;
-
-    t0=time.time();
-    image_array=np.zeros((numpx[0]/2,numpx[1]/2,len(files)),np.int32);
-    k=0;
-    for fil in files:
-        image_array[:,:,k]=pyfits.getdata(fil)[numpx[0]/2:,numpx[1]/2:];
-        k+=1;
-    return image_array;
-
-def gaus1d(x,a,x0,sigma):
-    '''
-    Gaussian for fitting
-    '''
-    return a*np.exp(-(x-x0)**2/(2*sigma**2));
-
-def gfit(vals, lims=[0,0]):
-    '''
-    Flatten vals, ccd pixel values, and fit them with a guassian for black
-    level noise.
-    '''
-    x=[];n=[];
-    mean=[];sigma=[];
-    l=[];
-    if(lims[0]==lims[1]):
-        bins = int( (vals.max()-vals.min())/2. );
-        n,x=np.histogram( vals, bins=bins );
-        maxn=np.argmax(n);
-        mean= (x[maxn-1]+x[maxn])/2.;
-        sigma=50;
-        l= (mean-3*sigma<vals) & (mean+3*sigma>vals) ;
-    else:
-        l= (lims[0]<vals) & (lims[1]>vals);
-        mean=np.mean(vals[l]);
-        sigma=np.std(vals[l]);
-        bins = int( (vals[l].max()-vals[l].min())/2. );
-        n,x=np.histogram( vals[l], bins=bins);
-
-    centers=np.asarray([ (x[k-1]+x[k])/2. for k in range(1,len(x)) ]);
-    popt,pcov = curve_fit(gaus1d,centers,n,p0=[1,mean,sigma])
-    return popt;
-
-def readin_files(fits_dir,pre_proc_name):
-    '''
-    Take in fits_dir to collect all fits with pre_proc_name cached file names
-    '''
-    files=[];
-    if(os.path.exists( os.path.join(fits_dir, pre_proc_name) ) ):
-        files=np.genfromtxt(os.path.join(fits_dir,pre_proc_name), dtype='<S60');
-    else:
-        files = os.listdir(fits_dir);
-        files =  [ os.path.join(fits_dir,fil)
-                   for fil in files
-                   if( fil.endswith('fits') | fil.endswith('fit') )];
-        files = filter(os.path.isfile,files);
-        files = np.asarray(sorted( files,key=lambda x :int(x.split('_')[-1].split('.')[0] ) ));
-        fil_lst=file(os.path.join(fits_dir,pre_proc_name) ,'w+');
-        for fil in files:
-            fil_lst.write(fil+'\n');
-        print files[-1];
-    return files;
+from ccd_utils import *;
 
 def process(vals):
     '''
@@ -96,6 +23,7 @@ def main(args):
 
     num_cores = args.num_cpu;
 
+    quadrant=args.quad;
     step=args.num_im_per_med;
     outfile=args.outfile;
     hdf_fil=h5py.File(outfile,'w');
@@ -106,10 +34,10 @@ def main(args):
                                 chunks=(numpx[0]/2,numpx[1]/2,step),
                                 compression="lzf")
 
-    med=np.median(get_image_array(files[0:step]),axis=2);
+    med=np.median(get_image_array(files[0:step],quadrant),axis=2);
     sum_=0;
     for k in range(step,len(files),step):
-        image_array=get_image_array(files[k:k+step]);
+        image_array=get_image_array(files[k:k+step],quadrant);
         sum_+=(image_array[20:-20,20:-20,:]>2**16-10).sum();
         image_array_prime=image_array-med[:,:,None];
 
@@ -137,6 +65,8 @@ if __name__ == '__main__':
                         default='ccd_sub.h5',help='Output file h5');
     parser.add_argument('--nipm', dest='num_im_per_med', default=59, type=int,
                         help='Number of images per median/chunk');
+    parser.add_argument('--quad', dest='quad', default=0, type=int,
+                        help='Quadrant of image array');
     parser.add_argument('--cpus', dest='num_cpu', default=8, type=int,
                         help='Number of cpus to throw at problem');
 
